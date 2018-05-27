@@ -32,7 +32,7 @@ contract Project {
     constructor(uint _amountToBeRaised, uint _expiryInSeconds, address _manager) public {
         details = Details({
             manager : _manager,
-            amountToBeRaised : _amountToBeRaised,
+            amountToBeRaised : _amountToBeRaised * 1 ether,
             deadline : now + _expiryInSeconds,
             isOpen : true
         });
@@ -64,7 +64,7 @@ contract Project {
     }    
 
     function payout() private {        
-        details.manager.transfer(amountRaisedSoFar);
+        details.manager.transfer(address(this).balance);
         amountRaisedSoFar = 0;
     }
     
