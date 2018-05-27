@@ -153,7 +153,7 @@ describe('Projects', () => {
 async function payoutScenario(beneficiary, contributor, expiryTime, pendingTimeBeforeExpiry) {
     await createProject(beneficiary, 1000000000000, expiryTime);
 
-    const balanceBefore = await web3.eth.getBalance(accounts[0]);
+    const balanceBefore = await web3.eth.getBalance(beneficiary);
 
     try {
         await project.methods.fund().send({
