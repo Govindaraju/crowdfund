@@ -30,7 +30,7 @@ describe('Verify Deployment and Project Creation', () => {
     });
 
     it('There should be exactly one project created ', async () => {
-        await createProject(accounts[0], 1000, 2);
+        await createProject(accounts[0], 1000, toSecondsFromDays(2));
         const count = await fundingHub.methods.countOfProjects().call();
         assert.equal(count, 1);
     })
@@ -38,9 +38,10 @@ describe('Verify Deployment and Project Creation', () => {
 
 describe('Projects', () => {
     it('should get created with anticipated attributes', async () => {
-        await createProject(accounts[1], 200, 2);
+        const time = toSecondsFromDays(2);
+        await createProject(accounts[1], 200, toSecondsFromDays(2));
         const result = await project.methods.completeDetails().call();
-        assertProjectDetails(result, accounts[1], 200, 1, true, 0);
+        assertProjectDetails(result, accounts[1], 200, toSecondsFromDays(1), true, 0);
     });
 
     it('should be able to fund the project when funding goal is not reached', async () => {
@@ -51,11 +52,11 @@ describe('Projects', () => {
             value: '100'
         });
         const result = await project.methods.completeDetails().call();
-        assertProjectDetails(result, accounts[1], 200, 1, true, 100);
+        assertProjectDetails(result, accounts[1], 200, toSecondsFromDays(1), true, 100);
     });
 
     it('should not be able to fund the project when funding goal is reached', async () => {
-        await createProject(accounts[0], 300, 5);
+        await createProject(accounts[0], 300, toSecondsFromDays(5));
 
         try {
             await project.methods.fund().send({
@@ -64,7 +65,7 @@ describe('Projects', () => {
                 value: '300'
             });
             let result = await project.methods.completeDetails().call();
-            assertProjectDetails(result, accounts[0], 300, 4, false, 0);
+            assertProjectDetails(result, accounts[0], 300, toSecondsFromDays(4), false, 0);
 
         } catch (error) {
             assert(false);
@@ -76,39 +77,101 @@ describe('Projects', () => {
                 gas: '1000000',
                 value: '300'
             });
-            assert(false);
+            assert(false, 'invalid test case execution step');
         } catch (error) {
             assert(true);
         }
         result = await project.methods.completeDetails().call();
-        assertProjectDetails(result, accounts[0], 300, 4, false, 0);
+        assertProjectDetails(result, accounts[0], 300, toSecondsFromDays(4), false, 0);
     });
 
     it('payout of fund should happen when funding goal is reached', async () => {
-        await createProject(accounts[0], 1000000000000, 5);
+        await payoutScenario(accounts[0], accounts[2], toSecondsFromDays(5), toSecondsFromDays(4));
+    });
 
-        const balanceBefore = await web3.eth.getBalance(accounts[0]);
+    it('should not allow contributors to withdraw funds once payout is done', async () => {
+        await payoutScenario(accounts[0], accounts[2], toSecondsFromDays(5), toSecondsFromDays(4));
 
         try {
-            await project.methods.fund().send({
-                from: accounts[2],
-                gas: '1000000',
-                value: '1000000000000'
+            await project.methods.withdraw().send({
+                from: accounts[4]
             });
-            let result = await project.methods.completeDetails().call();
-            assertProjectDetails(result, accounts[0], 1000000000000, 4, false, 0);
-
-            const balanceAfter = await web3.eth.getBalance(accounts[0]);
-
-            assert(balanceAfter > balanceBefore);
-
+            assert(false, 'invalid test case execution step');
         } catch (error) {
-            assert(false);
+            assert(true);
         }
     });
+
+    it('should allow contributors to withdraw funds when the project has expired before reaching the funding goal', async () => {
+        await createProject(accounts[0], 300, 5);
+
+        await project.methods.fund().send({
+            from: accounts[1],
+            gas: '1000000',
+            value: '200'
+        });
+
+        setTimeout(async () => {
+
+            try {
+                await project.methods.withdraw().send({
+                    from: accounts[4]
+                });
+                assert(true);
+            } catch (error) {
+                assert(false, 'invalid test case execution step');
+            }
+        }, 6000);
+    });
+
+    it('should not allow contributors to withdraw funds when the project has not yet expired', async () => {
+        await createProject(accounts[0], 300, 5);
+
+        await project.methods.fund().send({
+            from: accounts[1],
+            gas: '1000000',
+            value: '200'
+        });
+
+        setTimeout(async () => {
+
+            try {
+                await project.methods.withdraw().send({
+                    from: accounts[4]
+                });
+                assert(false, 'invalid test case execution step');
+                
+            } catch (error) {
+                assert(true);
+            }
+        }, 3000);
+    });
+    
 });
 
 
+async function payoutScenario(beneficiary, contributor, expiryTime, pendingTimeBeforeExpiry) {
+    await createProject(beneficiary, 1000000000000, expiryTime);
+
+    const balanceBefore = await web3.eth.getBalance(accounts[0]);
+
+    try {
+        await project.methods.fund().send({
+            from: contributor,
+            gas: '1000000',
+            value: '1000000000000'
+        });
+        let result = await project.methods.completeDetails().call();
+        assertProjectDetails(result, beneficiary, 1000000000000, pendingTimeBeforeExpiry, false, 0);
+
+        const balanceAfter = await web3.eth.getBalance(beneficiary);
+
+        assert(balanceAfter > balanceBefore);
+
+    } catch (error) {
+        assert(false);
+    }
+}
 
 async function createProject(fromAddress, amountToBeRaised, expiryTime) {
     await fundingHub.methods.createProject(amountToBeRaised, expiryTime)
@@ -122,12 +185,18 @@ async function createProject(fromAddress, amountToBeRaised, expiryTime) {
     );
 }
 
-function assertProjectDetails(result, account, amountToBeRaised, daysBeforeExpiry, status, amountRaisedSoFar) {
-    console.log(result);
+function assertProjectDetails(result, account, amountToBeRaised, secondsBeforeExpiry, status, amountRaisedSoFar) {
+    //console.log(result);
     assert.equal(result[0], account, 'first element of the returned value should be the beneficiary aka the creater of the project');
     assert.equal(result[1], amountToBeRaised, 'second element of the returned value should be the amount to be raised');
-    assert(parseInt(result[2]) >= parseInt(daysBeforeExpiry), 'third element of the returned value should be the no of days before expiry');
+    assert(parseInt(result[2]) >= secondsBeforeExpiry, 'third element of the returned value should be the no of seconds before expiry');
     assert.equal(result[3], status, 'fourth element of the returned value shold be the status of the project(open or closed)');
     assert.equal(result[4], amountRaisedSoFar, 'fourth element of the returned value should be the amount raised so far');
 
+}
+
+function toSecondsFromDays(days) {
+    const time = days * 24 * 60 * 60 * 1000;
+    //console.log('days :', days, " seconds : ", time);
+    return time;
 }

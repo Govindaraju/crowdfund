@@ -4,8 +4,8 @@ contract FundingHub {
     address[] private projects;
     uint public countOfProjects;
     
-    function createProject(uint _amountToBeRaised, uint8 _daysAfter) public {
-        address project = new Project(_amountToBeRaised,_daysAfter,msg.sender);
+    function createProject(uint _amountToBeRaised, uint _expiryInSeconds) public {
+        address project = new Project(_amountToBeRaised,_expiryInSeconds,msg.sender);
         projects.push(project);
         countOfProjects++;
     }
@@ -13,6 +13,7 @@ contract FundingHub {
     function getAllProjects() view public returns(address[]){
         return projects;
     }
+    
 }
 
 contract Project {
@@ -28,11 +29,11 @@ contract Project {
     uint public amountRaisedSoFar;
     mapping(address => uint) public contributions;
     
-    constructor(uint _amountToBeRaised, uint _daysAfter, address _manager) public {
+    constructor(uint _amountToBeRaised, uint _expiryInSeconds, address _manager) public {
         details = Details({
             manager : _manager,
             amountToBeRaised : _amountToBeRaised,
-            deadline : now + _daysAfter * 1 days,
+            deadline : now + _expiryInSeconds,
             isOpen : true
         });
     }
@@ -77,8 +78,8 @@ contract Project {
     }
     
     function completeDetails() view public returns (
-        address,uint,uint,bool,uint) {
-        return (details.manager,details.amountToBeRaised, ((details.deadline - now)/ 1 days),details.isOpen,amountRaisedSoFar);
+        address,uint,int,bool,uint) {
+        return (details.manager,details.amountToBeRaised, int(details.deadline - now),details.isOpen,amountRaisedSoFar);
     }
 }
 
