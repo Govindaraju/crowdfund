@@ -1,4 +1,6 @@
 package-lock.json
 node_modules/
 ethereum/build/*
+ethereum/ADDRESS
+ethereum/deploy.rinkeby.js
 

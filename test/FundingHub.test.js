@@ -8,7 +8,6 @@ const web3 = new Web3(ganache.provider());
 const compiledFundingHubContract = require('../ethereum/build/FundingHub.json');
 const compileProjectContract = require('../ethereum/build/Project.json');
 
-require('events').EventEmitter.prototype._maxListeners = 100;
 
 let accounts;
 let fundingHub;
